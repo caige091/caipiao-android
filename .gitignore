@@ -36,3 +36,4 @@ app/build/_pulled/
 
 # === AI tooling (local agent state) ===
 .trae/
+.gh-cli/
