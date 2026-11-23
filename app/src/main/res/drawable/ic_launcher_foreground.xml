@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 红球主体 -->
+    <path
+        android:pathData="M54,54m-30,0a30,30 0,1 1,60 0a30,30 0,1 1,-60 0"
+        android:fillColor="#E8392E" />
+    <!-- 金色内圈 -->
+    <path
+        android:pathData="M54,54m-20,0a20,20 0,1 1,40 0a20,20 0,1 1,-40 0"
+        android:strokeColor="#F6B73C"
+        android:strokeWidth="3" />
+    <!-- 中间“奖”字风格的简化图形：金色菱形 -->
+    <path
+        android:pathData="M54,40 L66,54 L54,68 L42,54 Z"
+        android:fillColor="#F6B73C" />
+</vector>

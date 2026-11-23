@@ -1,0 +1,38 @@
+# === Gradle ===
+.gradle/
+local.properties
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+.tools/
+
+# === IDE ===
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# === Android build outputs ===
+app/build/
+*.apk
+*.aab
+*.ap_
+
+# === Signing keys ===
+*.jks
+*.keystore
+!debug.keystore
+
+# === macOS / Windows ===
+.DS_Store
+Thumbs.db
+
+# === Temp / screenshots / check artifacts ===
+app/build/screen-*.png
+app/build/_apk_check/
+app/build/_pulled/
+*.log
+
+# === AI tooling (local agent state) ===
+.trae/
