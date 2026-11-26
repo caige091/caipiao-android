@@ -267,14 +267,17 @@ function renderDraw() {
   const draw = latestDraw(game);
   const conf = GAME_CONF[game];
   const ballsEl = $('#drawBalls');
+  document.body.dataset.game = game;
+  $('#drawGameName').textContent = conf.name;
+  $('#scheduleTip').textContent = conf.schedule;
   ballsEl.innerHTML = '';
 
   if (!draw) {
     $('#drawIssue').textContent = '暂无数据';
     $('#drawDate').textContent = '';
-    ballsEl.innerHTML = '<span class="tip">开奖数据获取失败，请点击"刷新"重试。</span>';
+    ballsEl.innerHTML = '<div class="draw-empty"><strong>等待同步开奖号码</strong><p>点击上方刷新，获取最新一期数据。</p></div>';
     $('#drawStats').innerHTML = '';
-    $('#prizeTable').innerHTML = '';
+    $('#prizeTable').innerHTML = '<tr><td class="table-empty">同步开奖后显示本期奖金</td></tr>';
     return;
   }
 
@@ -298,12 +301,15 @@ function renderDraw() {
       : [['当期销量', fmtMoney(draw.sales)]];
   statItems.forEach(([label, val]) => {
     const div = document.createElement('div');
-    div.innerHTML = `${label}：<b>${val}</b>`;
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    const amount = document.createElement('b');
+    amount.textContent = val;
+    div.append(caption, amount);
     stats.appendChild(div);
   });
 
   renderPrizeTable(draw);
-  $('#scheduleTip').textContent = conf.schedule;
 }
 
 function renderPrizeTable(draw) {
@@ -391,13 +397,23 @@ function renderHistory() {
   const list = $('#historyList');
   list.innerHTML = '';
   const results = state.draws[game]?.result || [];
+  if (!results.length) {
+    list.innerHTML = '<div class="empty-tip"><strong>暂无开奖记录</strong><p>同步后显示最近 10 期号码。</p></div>';
+    return;
+  }
   results.forEach((d) => {
     const row = document.createElement('div');
     row.className = 'history-row';
     const issue = document.createElement('span');
     issue.className = 'history-issue';
-    issue.textContent = `${d.code} 期 · ${d.date}`;
-    row.appendChild(issue);
+    issue.textContent = `${d.code} 期`;
+    const date = document.createElement('span');
+    date.className = 'history-date';
+    date.textContent = d.date;
+    const top = document.createElement('div');
+    top.className = 'history-top';
+    top.append(issue, date);
+    row.appendChild(top);
 
     const balls = document.createElement('span');
     balls.className = 'history-balls';
@@ -426,9 +442,6 @@ function renderPicker() {
   if (game === 'ssq') {
     const { reds, blue, multiplier } = state.picker.ssq;
 
-    // 倍数选择器
-    area.appendChild(buildMultiplierRow('ssq', multiplier));
-
     const redGroup = document.createElement('div');
     redGroup.className = 'picker-group';
     redGroup.innerHTML = `<div class="picker-group-label">红球（1-33，选 <b>6</b> 个，已选 <b>${reds.length}</b> 个）</div>`;
@@ -438,6 +451,8 @@ function renderPicker() {
       const b = document.createElement('button');
       b.className = 'ball-pick' + (reds.includes(n) ? ' sel-red' : '');
       b.textContent = pad2(n);
+      b.setAttribute('aria-label', `红球 ${pad2(n)}`);
+      b.setAttribute('aria-pressed', String(reds.includes(n)));
       b.onclick = () => toggleRed(n);
       grid.appendChild(b);
     }
@@ -453,6 +468,8 @@ function renderPicker() {
       const b = document.createElement('button');
       b.className = 'ball-pick' + (blue === n ? ' sel-blue' : '');
       b.textContent = pad2(n);
+      b.setAttribute('aria-label', `蓝球 ${pad2(n)}`);
+      b.setAttribute('aria-pressed', String(blue === n));
       b.onclick = () => {
         state.picker.ssq.blue = state.picker.ssq.blue === n ? null : n;
         renderPicker();
@@ -461,6 +478,7 @@ function renderPicker() {
     }
     blueGroup.appendChild(bgrid);
     area.appendChild(blueGroup);
+    area.appendChild(buildMultiplierRow('ssq', multiplier));
 
     const done = reds.length === 6 && blue;
     const cost = done ? conf.price * multiplier : 0;
@@ -473,7 +491,7 @@ function renderPicker() {
 
     const modes = document.createElement('div');
     modes.className = 'play-mode-row';
-    modes.textContent = '玩法：';
+    modes.innerHTML = '<span class="play-mode-label">选择玩法</span>';
     ['direct', 'group3', 'group6'].forEach((mode) => {
       const button = document.createElement('button');
       button.className = 'filter-btn' + (playMode === mode ? ' active' : '');
@@ -483,8 +501,6 @@ function renderPicker() {
       modes.appendChild(button);
     });
     area.appendChild(modes);
-
-    area.appendChild(buildMultiplierRow('3d', multiplier));
 
     const group = document.createElement('div');
     group.className = 'picker-group';
@@ -501,6 +517,8 @@ function renderPicker() {
         const c = document.createElement('button');
         c.className = 'digit-cell' + (digits[idx] === n ? ' sel' : '');
         c.textContent = n;
+        c.setAttribute('aria-label', `${label} ${n}`);
+        c.setAttribute('aria-pressed', String(digits[idx] === n));
         c.onclick = () => {
           state.picker['3d'].digits[idx] = state.picker['3d'].digits[idx] === n ? null : n;
           renderPicker();
@@ -512,6 +530,7 @@ function renderPicker() {
     });
     group.appendChild(row);
     area.appendChild(group);
+    area.appendChild(buildMultiplierRow('3d', multiplier));
 
     const complete = digits.every((d) => d !== null);
     const validMode = playMode === 'direct' || new Set(digits).size === (playMode === 'group3' ? 2 : 3);
@@ -529,11 +548,13 @@ function buildMultiplierRow(game, currentMultiplier) {
   const conf = GAME_CONF[game];
   const wrap = document.createElement('div');
   wrap.className = 'multiplier-row';
-  wrap.innerHTML = `<span class="multiplier-label">倍数：</span>`;
+  wrap.innerHTML = '<span class="multiplier-label">投注倍数</span>';
   for (let m = 1; m <= 10; m++) {
     const btn = document.createElement('button');
     btn.className = 'multiplier-btn' + (m === currentMultiplier ? ' active' : '');
     btn.textContent = m;
+    btn.setAttribute('aria-label', `${m} 倍`);
+    btn.setAttribute('aria-pressed', String(m === currentMultiplier));
     btn.onclick = () => {
       state.picker[game].multiplier = m;
       renderPicker();
@@ -618,6 +639,7 @@ function renderBets() {
 
     const del = document.createElement('button');
     del.className = 'bet-del'; del.textContent = '✕'; del.title = '删除此注';
+    del.setAttribute('aria-label', `删除第 ${idx + 1} 注投注`);
     del.onclick = () => {
       state.bets[game].splice(idx, 1);
       saveBets();
@@ -651,9 +673,9 @@ function renderLedger() {
   const overview = $('#ledgerOverview');
   overview.innerHTML = '';
   const cards = [
+    { label: '已结算净盈亏', value: (net < 0 ? '-' : '') + fmtYuan(Math.abs(net)), cls: `primary ${net >= 0 ? 'profit' : 'loss'}` },
     { label: '累计投入', value: fmtYuan(totalCost), cls: 'cost' },
     { label: '累计收益', value: fmtYuan(totalPrize), cls: 'prize' },
-    { label: '净利润', value: (net < 0 ? '-' : '') + fmtYuan(Math.abs(net)), cls: net >= 0 ? 'profit' : 'loss' },
     { label: '已开奖', value: `${filtered.length} 期`, cls: '' },
     { label: '中奖期数', value: `${wonCount} 期`, cls: '' },
     { label: '中奖率', value: hitRate, cls: '' },
@@ -677,6 +699,7 @@ function renderLedger() {
       const btn = document.createElement('button');
       btn.className = 'filter-btn' + (state.ledgerFilter === f.v ? ' active' : '');
       btn.textContent = f.t;
+      btn.setAttribute('aria-pressed', String(state.ledgerFilter === f.v));
       btn.onclick = () => { state.ledgerFilter = f.v; renderLedger(); };
       filterWrap.appendChild(btn);
     });
@@ -686,7 +709,7 @@ function renderLedger() {
   const detail = $('#ledgerDetail');
   detail.innerHTML = '';
   if (filtered.length === 0) {
-    detail.innerHTML = '<div class="empty-tip">还没有开奖记录。投注后等待开奖，结果会自动计入这里。</div>';
+    detail.innerHTML = '<div class="empty-tip"><span class="empty-symbol" aria-hidden="true">≡</span><strong>还没有结算记录</strong><p>添加投注后，开奖结果会自动归档到这里。</p></div>';
   } else {
     filtered.forEach((rec) => {
       const row = document.createElement('div');
@@ -697,7 +720,7 @@ function renderLedger() {
       head.innerHTML = `
         <span class="ledger-game tag-${rec.game}">${GAME_CONF[rec.game].name}</span>
         <span class="ledger-issue">第 ${rec.issue} 期 · ${rec.drawDate}</span>
-        <span class="ledger-status ${rec.status}">${rec.status === 'won' ? '🎉 中奖' : '未中'}</span>
+        <span class="ledger-status ${rec.status}">${rec.status === 'won' ? '已中奖' : '未中'}</span>
       `;
       row.appendChild(head);
 
@@ -745,7 +768,7 @@ function renderLedger() {
       foot.innerHTML = `
         <span>共 ${rec.bets.length} 注，投入 <b>${fmtYuan(rec.totalCost)}</b>，收益 <b>${fmtYuan(rec.totalPrize)}</b>
         ，<b class="${netLine >= 0 ? 'prize' : 'noprize'}">${netLine >= 0 ? '盈余 ' : '亏损 '}${fmtYuan(Math.abs(netLine))}</b></span>
-        <button class="bet-del" title="删除此条记录">✕</button>
+        <button class="bet-del" title="删除此条记录" aria-label="删除第 ${rec.issue} 期账本记录">✕</button>
       `;
       foot.querySelector('.bet-del').onclick = () => {
         if (confirm('确定删除这条账本记录吗？')) {
@@ -808,14 +831,14 @@ function clearPicker() {
 
 function renderHeaderStatus(err) {
   const el = $('#headerStatus');
-  const t = state.fetchedAt[state.game] ? new Date(state.fetchedAt[state.game]).toLocaleTimeString('zh-CN') : '';
+  const t = state.fetchedAt[state.game] ? new Date(state.fetchedAt[state.game]).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
   if (err) {
     el.classList.add('err');
-    el.textContent = '开奖数据获取失败，点击"刷新"重试';
+    el.textContent = latestDraw(state.game) ? '更新失败，正在显示上次数据' : '暂未获取开奖，请刷新重试';
   } else {
     el.classList.remove('err');
     const draw = latestDraw(state.game);
-    el.textContent = draw ? `已更新至第 ${draw.code} 期 · ${t}${state.stale[state.game] ? '（缓存）' : ''}` : '加载中…';
+    el.textContent = draw ? (state.stale[state.game] ? '使用缓存，建议稍后刷新' : `${t} 已同步最新开奖`) : '正在同步开奖数据';
   }
 }
 
@@ -831,13 +854,18 @@ function renderAll(err) {
 
 async function switchGame(game) {
   state.game = game;
-  document.querySelectorAll('.game-tab').forEach((t) => t.classList.toggle('active', t.dataset.game === game));
+  document.querySelectorAll('.game-tab').forEach((t) => {
+    const selected = t.dataset.game === game;
+    t.classList.toggle('active', selected);
+    t.setAttribute('aria-selected', String(selected));
+  });
   if (!state.draws[game]) {
     try { await fetchDraw(game); } catch { /* ignore */ }
   }
   // 切换彩种后，如果有新开奖要先自动归档再渲染
   autoArchive();
   renderAll(!state.draws[game]);
+  window.scrollTo(0, 0);
 }
 
 /* ================= 启动 ================= */
@@ -861,11 +889,17 @@ function bindEvents() {
   $('#btnClearPicker').onclick = clearPicker;
   $('#btnAddBet').onclick = addBet;
 
-  // Tab 切换（开奖 / 投注 / 账本）
+  // 底部导航切换；保留选号状态，返回页面顶部。
   document.querySelectorAll('.page-tab').forEach((tab) => {
     tab.onclick = () => {
-      document.querySelectorAll('.page-tab').forEach((t) => t.classList.toggle('active', t.dataset.page === tab.dataset.page));
+      document.querySelectorAll('.page-tab').forEach((t) => {
+        const selected = t.dataset.page === tab.dataset.page;
+        t.classList.toggle('active', selected);
+        if (selected) t.setAttribute('aria-current', 'page');
+        else t.removeAttribute('aria-current');
+      });
       document.querySelectorAll('.page-section').forEach((s) => s.hidden = s.dataset.page !== tab.dataset.page);
+      window.scrollTo(0, 0);
     };
   });
 }

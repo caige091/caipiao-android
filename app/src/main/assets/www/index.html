@@ -2,135 +2,108 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#F5F6FA" />
   <title>福彩开奖模拟器 · 双色球 / 福彩3D</title>
   <link rel="stylesheet" href="style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%23e8392e'/><text x='50' y='68' font-size='52' text-anchor='middle' fill='%23fff' font-family='sans-serif'>奖</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='10' fill='%23EF4A46'/><circle cx='11' cy='11' r='3' fill='white'/><circle cx='21' cy='11' r='3' fill='white'/><circle cx='11' cy='21' r='3' fill='white'/><circle cx='21' cy='21' r='3' fill='white'/></svg>" />
 </head>
 <body>
   <header class="site-header">
     <div class="wrap header-inner">
       <div class="brand">
-        <span class="brand-logo">奖</span>
-        <div>
-          <h1>福彩开奖模拟器</h1>
-          <p>自动获取开奖 · 倍投选号 · 账本统计</p>
-        </div>
+        <span class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" fill="currentColor"><circle cx="10" cy="10" r="3.5"/><circle cx="22" cy="10" r="3.5"/><circle cx="10" cy="22" r="3.5"/><circle cx="22" cy="22" r="3.5"/></svg>
+        </span>
+        <div><h1>福彩开奖</h1><p>你的随身选号账本</p></div>
       </div>
-      <div class="header-status" id="headerStatus">正在获取开奖数据…</div>
+      <span class="app-badge">模拟体验</span>
     </div>
   </header>
 
-  <main class="wrap">
-    <!-- 彩种切换 -->
-    <div class="game-tabs" role="tablist">
-      <button class="game-tab active" data-game="ssq" role="tab">双色球</button>
-      <button class="game-tab" data-game="3d" role="tab">福彩3D</button>
+  <main class="wrap app-main">
+    <div class="game-tabs" role="tablist" aria-label="选择彩种">
+      <button type="button" class="game-tab active" data-game="ssq" role="tab" aria-selected="true"><span class="game-dot ssq" aria-hidden="true"></span>双色球</button>
+      <button type="button" class="game-tab" data-game="3d" role="tab" aria-selected="false"><span class="game-dot d3" aria-hidden="true"></span>福彩3D</button>
+    </div>
+    <div class="sync-row">
+      <span class="header-status" id="headerStatus" role="status" aria-live="polite">正在同步开奖数据</span>
+      <button type="button" class="icon-button" id="btnRefresh" aria-label="刷新开奖数据">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17"/></svg><span>刷新</span>
+      </button>
     </div>
 
-    <!-- 页面级切换：开奖 / 投注 / 账本 / 中奖规则 -->
-    <div class="page-tabs">
-      <button class="page-tab active" data-page="draw">开奖</button>
-      <button class="page-tab" data-page="bet">投注</button>
-      <button class="page-tab" data-page="ledger">账本</button>
-      <button class="page-tab" data-page="rules">中奖规则</button>
-    </div>
-
-    <!-- ========== 开奖页 ========== -->
-    <section class="page-section" data-page="draw">
-      <!-- 最新开奖 -->
+    <section class="page-section" data-page="draw" aria-label="开奖">
+      <div class="page-heading"><h2>开奖速览</h2><p>看最新号码，也回顾每一期。</p></div>
       <div class="card draw-card">
-        <div class="card-head">
-          <h2>最新开奖</h2>
-          <div class="draw-meta">
-            <span id="drawIssue">--</span>
-            <span id="drawDate">--</span>
-            <button class="btn-ghost" id="btnRefresh" title="重新拉取开奖数据">刷新</button>
-          </div>
+        <div class="draw-card-head">
+          <div class="draw-game"><span class="game-emblem" aria-hidden="true">奖</span><div><h3 id="drawGameName">双色球</h3><span class="draw-label">最新一期</span></div></div>
+          <div class="draw-meta"><span id="drawIssue">等待同步</span><span id="drawDate"></span></div>
         </div>
         <div class="draw-balls" id="drawBalls"></div>
         <div class="draw-stats" id="drawStats"></div>
-        <div class="prize-table-wrap">
-          <table class="prize-table" id="prizeTable"></table>
-        </div>
-        <p class="tip" id="scheduleTip"></p>
+        <p class="tip schedule-tip" id="scheduleTip"></p>
       </div>
-
-      <!-- 近期开奖 -->
-      <div class="card">
-        <div class="card-head">
-          <h2>近 10 期开奖</h2>
-        </div>
+      <div class="card prize-card">
+        <div class="card-head"><h3>本期奖金</h3><span class="section-tag">单注奖金</span></div>
+        <div class="prize-table-wrap"><table class="prize-table" id="prizeTable" aria-label="本期奖金信息"></table></div>
+      </div>
+      <div class="card history-card">
+        <div class="card-head"><h3>近期开奖</h3><span class="section-tag">最近 10 期</span></div>
         <div class="history-list" id="historyList"></div>
       </div>
     </section>
 
-    <!-- ========== 投注页 ========== -->
-    <section class="page-section" data-page="bet" hidden>
-      <!-- 选号区 -->
-      <div class="card">
-        <div class="card-head">
-          <h2 id="pickerTitle">我的选号</h2>
-          <div class="head-actions">
-            <span class="picker-issue-tag" id="pickerIssue">--</span>
-            <button class="btn-secondary" id="btnRandom">机选一注</button>
-            <button class="btn-ghost" id="btnClearPicker">清空</button>
-          </div>
+    <section class="page-section" data-page="bet" aria-label="选号" hidden>
+      <div class="page-heading"><h2>我的选号</h2><p>手动选号或机选，记录下一期投注。</p></div>
+      <div class="card picker-card">
+        <div class="card-head"><h3 id="pickerTitle">双色球 · 选号</h3><span class="section-tag">每注 2 元</span></div>
+        <div class="picker-context"><span class="picker-issue-tag" id="pickerIssue">等待同步期号</span></div>
+        <div class="picker-actions">
+          <button type="button" class="btn-secondary" id="btnRandom"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M8 8h.01M16 8h.01M12 12h.01M8 16h.01M16 16h.01"/></svg>机选一注</button>
+          <button type="button" class="btn-ghost" id="btnClearPicker">清空选号</button>
         </div>
         <div id="pickerArea"></div>
-        <div class="picker-footer">
-          <span class="tip" id="pickerTip"></span>
-          <button class="btn-primary" id="btnAddBet">加入我的投注</button>
-        </div>
+        <div class="picker-footer"><span class="tip" id="pickerTip"></span><button type="button" class="btn-primary" id="btnAddBet">加入我的投注</button></div>
       </div>
-
-      <!-- 待开奖投注 -->
-      <div class="card">
-        <div class="card-head">
-          <h2>我的投注 · 待结算</h2>
-          <div class="head-actions">
-            <span class="picker-issue-tag" id="betIssueTag">--</span>
-            <span class="bet-count" id="betCount">共 0 注</span>
-          </div>
-        </div>
+      <div class="card pending-card">
+        <div class="card-head"><h3>待结算投注</h3><span class="bet-count" id="betCount">共 0 注</span></div>
+        <div class="pending-context"><span class="picker-issue-tag" id="betIssueTag">等待确认期号</span></div>
         <div class="bet-list" id="betList"></div>
-        <div class="empty-tip" id="emptyTip">还没有投注，先在上面选号或机选一注吧～</div>
+        <div class="empty-tip" id="emptyTip"><span class="empty-symbol" aria-hidden="true">＋</span><strong>还没有投注记录</strong><p>在上方选号或机选，添加后等待开奖。</p></div>
       </div>
     </section>
 
-    <!-- ========== 账本页 ========== -->
-    <section class="page-section" data-page="ledger" hidden>
-      <div class="card">
-        <div class="card-head">
-          <h2>我的账本</h2>
-          <div class="head-actions" id="ledgerFilter"></div>
-        </div>
+    <section class="page-section" data-page="ledger" aria-label="账本" hidden>
+      <div class="page-heading"><h2>我的账本</h2><p>投入、收益和每一期的结果。</p></div>
+      <div class="card ledger-summary-card">
+        <div class="card-head"><h3>收支概览</h3><div class="head-actions" id="ledgerFilter" aria-label="按彩种筛选"></div></div>
         <div class="ledger-overview" id="ledgerOverview"></div>
+        <p class="section-caption">仅统计已结算记录，待开奖投注暂未计入。</p>
       </div>
-      <div class="card">
-        <div class="card-head"><h2>每期明细</h2></div>
-        <div class="ledger-detail" id="ledgerDetail"></div>
-      </div>
+      <div class="card"><div class="card-head"><h3>每期明细</h3><span class="section-tag">开奖后自动归档</span></div><div class="ledger-detail" id="ledgerDetail"></div></div>
     </section>
 
-    <section class="page-section" data-page="rules" hidden>
-      <div class="card">
-        <div class="card-head"><h2 id="rulesTitle">中奖规则</h2></div>
+    <section class="page-section" data-page="rules" aria-label="中奖规则" hidden>
+      <div class="page-heading"><h2>中奖指南</h2><p>中奖条件和奖金，随时查一查。</p></div>
+      <div class="card rules-card">
+        <div class="card-head"><h3 id="rulesTitle">中奖规则</h3><span class="section-tag">基础规则</span></div>
         <p class="rules-intro" id="rulesIntro"></p>
-        <div class="prize-table-wrap">
-          <table class="prize-table rules-table" id="rulesTable" aria-label="中奖条件与单注奖金"></table>
-        </div>
+        <div class="prize-table-wrap"><table class="prize-table rules-table" id="rulesTable" aria-label="中奖条件与单注奖金"></table></div>
         <div class="rules-notes" id="rulesNotes"></div>
         <p class="rules-source" id="rulesSource"></p>
       </div>
     </section>
 
-    <footer class="site-footer">
-      <p>数据来源：中国福利彩票官网（cwl.gov.cn），每 5 分钟自动刷新。投注后开奖结果自动结算入账本。</p>
-      <p>本页面仅供学习娱乐，模拟奖金不作为兑奖依据。理性购彩，量力而行。</p>
-    </footer>
+    <footer class="site-footer"><p>开奖数据来自中国福利彩票官网 · 每 5 分钟刷新</p><p>仅供学习娱乐，模拟奖金不作为兑奖依据</p></footer>
   </main>
 
+  <nav class="page-tabs" aria-label="主导航">
+    <button type="button" class="page-tab active" data-page="draw" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span class="nav-label">开奖</span></button>
+    <button type="button" class="page-tab" data-page="bet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v5a2 2 0 0 0 0 4v5H4v-5a2 2 0 0 0 0-4V5Z"/><path d="M14 8v2m0 4v2M8 9v6m-2-3h4"/></svg><span class="nav-label">选号</span></button>
+    <button type="button" class="page-tab" data-page="ledger"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h13a1 1 0 0 1 1 1v16H6a3 3 0 0 1 0-6h14M6 3a3 3 0 0 0-3 3v11m0 0a3 3 0 0 0 3 3M8 7h7m-7 4h4"/></svg><span class="nav-label">账本</span></button>
+    <button type="button" class="page-tab" data-page="rules"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C9 3 5 3 3 4v15c2-1 6-1 9 1 3-2 7-2 9-1V4c-2-1-6-1-9 1Zm0 0v15M6 8h3m-3 4h3m6-4h3m-3 4h3"/></svg><span class="nav-label">规则</span></button>
+  </nav>
   <script src="app.js"></script>
 </body>
 </html>

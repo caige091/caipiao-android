@@ -2,12 +2,16 @@ package com.caipiao.app
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowInsets
+import android.view.ViewGroup
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.webkit.WebViewAssetLoader
 
 /**
@@ -47,7 +51,23 @@ class MainActivity : Activity() {
             }
         }
 
-        setContentView(webView)
+        val content = FrameLayout(this).apply {
+            setBackgroundResource(R.color.page_bg)
+            addView(webView, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            ))
+        }
+        // Android 15 起强制沉浸式布局，在原生层避开系统栏和挖孔区域。
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            content.setOnApplyWindowInsetsListener { view, insets ->
+                val safe = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                view.setPadding(safe.left, safe.top, safe.right, safe.bottom)
+                WindowInsets.CONSUMED
+            }
+        }
+        setContentView(content)
+        content.requestApplyInsets()
         webView.loadUrl("https://appassets.androidplatform.net/assets/www/index.html")
     }
 
