@@ -125,7 +125,7 @@ svg { display: block; flex-shrink: 0; }
 .prize-table th:last-child, .prize-table td:last-child { padding-right: 10px; }
 .prize-table tr:last-child td { border-bottom: 0; }
 .prize-table .pname { color: #4b5569; font-weight: 600; }
-.prize-table tr:nth-child(2) .pname, .prize-table tr:nth-child(3) .pname { color: var(--red-dark); }
+.prize-card .prize-table tr:nth-child(2) .pname, .prize-card .prize-table tr:nth-child(3) .pname { color: var(--red-dark); }
 .rules-intro { margin-bottom: 19px; color: var(--muted); font-size: 13px; line-height: 1.85; }
 .rules-table th, .rules-table td { padding: 14px 6px; text-align: left; font-size: 13px; line-height: 1.75; }
 .rules-table th { font-size: 10.5px; }
@@ -253,7 +253,7 @@ svg { display: block; flex-shrink: 0; }
 /* Bottom navigation and quiet footer */
 .site-footer { padding: 7px 12px 13px; text-align: center; }
 .site-footer p { margin-top: 5px; color: var(--muted); font-size: 9.5px; line-height: 1.8; }
-.page-tabs { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: flex; width: 100%; max-width: 720px; margin: 0 auto; padding: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid #e9ecf3; background: rgba(255, 255, 255, .98); }
+.page-tabs { position: fixed; z-index: 20; right: 0; bottom: 0; left: 0; display: flex; width: 100%; max-width: 720px; margin: 0 auto; padding: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid #e9ecf3; background: #fff; }
 .page-tab { position: relative; isolation: isolate; display: flex; align-items: center; justify-content: center; flex: 1; flex-direction: column; gap: 5px; min-width: 0; min-height: 54px; padding: 5px 4px; border: 0; background: transparent; color: var(--muted); }
 .page-tab::before { content: ""; position: absolute; z-index: -1; top: 1px; width: 48px; height: 31px; border-radius: 10px; background: transparent; }
 .page-tab svg { width: 21px; height: 21px; stroke-width: 1.8; }
