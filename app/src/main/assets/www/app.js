@@ -20,6 +20,7 @@ const GAME_CONF = {
 const SSQ_FIXED = { 3: 3000, 4: 200, 5: 10, 6: 5 };
 const SSQ_LEVEL_NAME = { 1: '一等奖', 2: '二等奖', 3: '三等奖', 4: '四等奖', 5: '五等奖', 6: '六等奖' };
 const D3_PRIZE = { direct: 1040, group3: 346, group6: 173 };
+const D3_MODE_NAME = { direct: '单选（直选）', group3: '组选三', group6: '组选六', legacy: '旧版自动判奖' };
 
 const state = {
   game: 'ssq',
@@ -30,7 +31,7 @@ const state = {
   ledger: loadLedger(),    // []
   picker: {
     ssq: { reds: [], blue: null, multiplier: 1 },
-    '3d': { digits: [null, null, null], multiplier: 1 },
+    '3d': { digits: [null, null, null], multiplier: 1, playMode: 'direct' },
   },
   ledgerTab: 'overview',   // overview | detail
   ledgerFilter: 'all',     // all | ssq | 3d
@@ -91,7 +92,16 @@ function shuffle(n) {
 function randomSsq() {
   return { reds: shuffle(33).slice(0, 6).sort((a, b) => a - b), blue: Math.ceil(Math.random() * 16) };
 }
-function randomD3() {
+function randomD3(playMode = 'direct') {
+  if (playMode === 'group3') {
+    const repeated = Math.floor(Math.random() * 10);
+    const other = (repeated + 1 + Math.floor(Math.random() * 9)) % 10;
+    const digits = [repeated, repeated, other];
+    const singlePosition = Math.floor(Math.random() * 3);
+    [digits[2], digits[singlePosition]] = [digits[singlePosition], digits[2]];
+    return { digits };
+  }
+  if (playMode === 'group6') return { digits: shuffle(10).slice(0, 3).map((n) => n - 1) };
   return { digits: Array.from({ length: 3 }, () => Math.floor(Math.random() * 10)) };
 }
 function fmtMoney(yuan) {
@@ -105,18 +115,28 @@ function fmtYuan(n) {
   const v = Number(n) || 0;
   return (v < 0 ? '-' : '') + '¥' + Math.abs(v).toLocaleString('zh-CN');
 }
-function nextIssueCode(game) {
+function nextIssueCode(game, now = new Date()) {
   const draw = latestDraw(game);
-  if (!draw) return null;
+  if (!draw || state.stale[game]) return null;
   const code = String(draw.code);
-  const next = parseInt(code) + 1;
-  // 跨年守卫：如果已经跨年（2026153→2027001 这种），手动修正
-  const year = code.slice(0, 4);
-  const nextYear = String(new Date().getFullYear());
-  if (year !== nextYear && parseInt(code.slice(4)) >= 300) {
-    return nextYear + '001';
-  }
-  return String(next);
+  const datePart = String(draw.date || '').match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  if (!/^\d{4}\d{3}$/.test(code) || !datePart || Number(code.slice(4)) === 0) return null;
+  // 用 UTC 表达日历日期，避免设备时区影响跨年和星期判断。
+  const nextDate = new Date(datePart + 'T00:00:00Z');
+  if (!Number.isFinite(nextDate.getTime()) || nextDate.toISOString().slice(0, 10) !== datePart
+      || String(nextDate.getUTCFullYear()) !== code.slice(0, 4)) return null;
+  const drawTimeOffset = (21 * 60 + 15 - 8 * 60) * 60_000;
+  if (now.getTime() < nextDate.getTime() + drawTimeOffset) return null;
+  do {
+    nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+  } while (game === 'ssq' && ![0, 2, 4].includes(nextDate.getUTCDay()));
+  // 正常开奖日 21:15（北京时间）后仍无新数据时，不再绑定可能已开奖的旧期。
+  // 休市或临时调整不能仅凭日历判断，等待官网更新后再确认期号。
+  if (!Number.isFinite(now.getTime()) || now.getTime() >= nextDate.getTime() + drawTimeOffset) return null;
+  const nextYear = String(nextDate.getUTCFullYear());
+  const sequence = nextYear === code.slice(0, 4) ? Number(code.slice(4)) + 1 : 1;
+  if (sequence > 999) return null;
+  return nextYear + String(sequence).padStart(3, '0');
 }
 
 /* ================= 数据获取 ================= */
@@ -153,8 +173,9 @@ function checkSsq(bet, draw) {
   let unit = 0;
   if (level >= 3) unit = SSQ_FIXED[level];
   else if (level >= 1) {
-    const g = draw.prizegrades?.find((p) => p.type === level);
-    unit = g?.typemoney ? Number(g.typemoney) : 0;
+    const g = draw.prizegrades?.find((p) => Number(p.type) === level);
+    const amount = Number(String(g?.typemoney ?? '').replace(/,/g, ''));
+    unit = Number.isFinite(amount) && amount > 0 ? amount : null;
   }
   return { level, r, b, unit, name: level ? SSQ_LEVEL_NAME[level] : '' };
 }
@@ -165,23 +186,25 @@ function checkD3(bet, draw) {
   const exact = mine.every((d, i) => d === win[i]);
   const sameSet = [...mine].sort().join() === [...win].sort().join();
   const distinct = new Set(win).size;
+  const mode = bet.playMode || 'legacy';
 
-  if (exact) return { level: 'direct', name: '直选中奖', unit: D3_PRIZE.direct };
-  if (sameSet && distinct === 2) return { level: 'group3', name: '组选三中奖', unit: D3_PRIZE.group3 };
-  if (sameSet && distinct === 3) return { level: 'group6', name: '组选六中奖', unit: D3_PRIZE.group6 };
+  // 无玩法字段的旧投注沿用旧版模拟判奖，避免静默改变已有投注含义。
+  if ((mode === 'direct' || mode === 'legacy') && exact) return { level: 'direct', name: '直选中奖', unit: D3_PRIZE.direct };
+  if ((mode === 'group3' || mode === 'legacy') && sameSet && distinct === 2) return { level: 'group3', name: '组选三中奖', unit: D3_PRIZE.group3 };
+  if ((mode === 'group6' || mode === 'legacy') && sameSet && distinct === 3) return { level: 'group6', name: '组选六中奖', unit: D3_PRIZE.group6 };
   return { level: 0, name: '', unit: 0 };
 }
 
 /* ================= 自动归档 ================= */
-// fetchDraw 之后调用：遍历所有 bets，如果某注的 issue <= 最新开奖期号 → 结算并归档到 ledger
+// 仅使用投注对应期的完整开奖结果结算；缺少历史或浮动奖金时继续等待。
 function autoArchive() {
   ['ssq', '3d'].forEach((game) => {
     const draw = latestDraw(game);
     if (!draw) return;
-    const drawCode = String(draw.code);
     const pending = state.bets[game]; // [{id, issue, reds/blue or digits, multiplier, purchasedAt}]
-    const toArchive = pending.filter((b) => b.issue <= drawCode);
-    const remaining = pending.filter((b) => b.issue > drawCode);
+    const toArchive = pending.filter((b) => String(b.issue) <= String(draw.code)
+      && state.draws[game].result.some((d) => String(d.code) === String(b.issue)));
+    const settled = new Set();
 
     if (toArchive.length === 0) return;
 
@@ -194,7 +217,7 @@ function autoArchive() {
 
     Object.keys(grouped).forEach((issue) => {
       const bets = grouped[issue];
-      const targetDraw = state.draws[game]?.result?.find((d) => String(d.code) === issue) || draw;
+      const targetDraw = state.draws[game].result.find((d) => String(d.code) === issue);
 
       let totalCost = 0;
       let totalPrize = 0;
@@ -214,6 +237,7 @@ function autoArchive() {
         totalPrize += prize;
         return { bet, multiplier, cost, prize, unit, name, r, b };
       });
+      if (checked.some((entry) => entry.unit === null)) return;
 
       state.ledger.unshift({
         id: uid(),
@@ -227,9 +251,10 @@ function autoArchive() {
         status: totalPrize > 0 ? 'won' : 'lost',
         checkedAt: new Date().toISOString(),
       });
+      bets.forEach((bet) => settled.add(bet.id));
     });
 
-    state.bets[game] = remaining;
+    state.bets[game] = pending.filter((bet) => !settled.has(bet.id));
   });
 
   saveBets();
@@ -316,6 +341,50 @@ function renderPrizeTable(draw) {
   }
 }
 
+/* ================= 渲染：中奖规则（无网络时仍可阅读） ================= */
+function renderRules() {
+  const ssq = state.game === 'ssq';
+  $('#rulesTitle').textContent = `${GAME_CONF[state.game].name} · 中奖规则`;
+  $('#rulesIntro').textContent = ssq
+    ? '每注 2 元，选择 6 个红球和 1 个蓝球。红球顺序不限，蓝球须相同。下表按命中的最高奖级列出，不重复计奖。'
+    : '每注 2 元，先选玩法，再选 3 位数字（每位 0–9）。只按投注时选择的玩法对奖，单选未中不会自动改为组选。';
+  const rows = ssq ? [
+    ['一等奖', '6 红 + 1 蓝', '浮动奖金，以当期公告为准'],
+    ['二等奖', '6 红 + 0 蓝', '浮动奖金，以当期公告为准'],
+    ['三等奖', '5 红 + 1 蓝', fmtYuan(SSQ_FIXED[3])],
+    ['四等奖', '5 红 + 0 蓝，或 4 红 + 1 蓝', fmtYuan(SSQ_FIXED[4])],
+    ['五等奖', '4 红 + 0 蓝，或 3 红 + 1 蓝', fmtYuan(SSQ_FIXED[5])],
+    ['六等奖', '0–2 红 + 1 蓝', fmtYuan(SSQ_FIXED[6])],
+    ['福运奖（有条件）', '特别规定期间，3 红 + 0 蓝', '¥5'],
+  ] : [
+    ['单选（直选）', '数字与位置全部一致。如选 123，只有开 123 才中。', fmtYuan(D3_PRIZE.direct)],
+    ['组选三', '恰有两位相同，数字相同且顺序不限。如选 112，开 112、121、211 均中。', fmtYuan(D3_PRIZE.group3)],
+    ['组选六', '三位各不相同，数字相同且顺序不限。如选 123，其 6 种排列均中。', fmtYuan(D3_PRIZE.group6)],
+  ];
+  const table = $('#rulesTable');
+  table.innerHTML = '<thead><tr><th scope="col">奖级 / 玩法</th><th scope="col">中奖条件</th><th scope="col">单注基础奖金</th></tr></thead>';
+  const body = document.createElement('tbody');
+  rows.forEach((cells) => {
+    const row = document.createElement('tr');
+    cells.forEach((text, index) => {
+      const cell = document.createElement('td');
+      cell.textContent = text;
+      if (index === 0) cell.className = 'pname';
+      row.appendChild(cell);
+    });
+    body.appendChild(row);
+  });
+  table.appendChild(body);
+  $('#rulesNotes').innerHTML = (ssq
+    ? '<p><strong>福运奖说明：</strong>2026 年规则规定，奖池达到 15 亿元触发特别规定，启动后持续至某期开奖后奖池低于 3 亿元时停止，具体启停以官方公告为准。3 红 + 1 蓝已中五等奖，不再叠加福运奖。</p>'
+      + '<p><strong>模拟结算范围：</strong>当前仅计算一至六等奖基础奖金；福运奖、活动特别奖及翻番等奖金未自动计入。一、二等奖使用该期公告金额，未公布奖金时保留待结算。</p>'
+    : '<p>组选三必须恰有两位相同，组选六必须三位各不相同；三位全同只能选择单选。旧版未标注玩法的投注保留原模拟判奖方式，并显示“旧版自动判奖”。当前只提供上述三种玩法，不含 1D、2D 等其他玩法及活动派奖。</p>')
+    + '<p>倍数同时作用于投入和基础奖金。投注期号按正常开奖日推算；休市、临时调整以官方为准。数据过期或期号待确认时请先刷新。仅在应用打开并取得对应期开奖数据后自动结算；近 10 期未包含的旧期继续保留，不会用其他期代替。</p>';
+  $('#rulesSource').innerHTML = ssq
+    ? '规则核对：2026-11-26（现行规则自 2026014 期起执行）。依据：<a href="https://www.scflcp.com.cn/tzgg/823144831.jhtml">四川福彩规则公告</a>、<a href="https://www.gdfc.org.cn/datas/content/content_281592.html">广东福彩福运奖说明</a>。'
+    : '规则核对：2026-11-26。依据：<a href="https://www.swlc.net.cn/games/3d.html">上海福彩 3D 游戏规则</a>。';
+}
+
 /* ================= 渲染：历史 ================= */
 function renderHistory() {
   const game = state.game;
@@ -348,9 +417,8 @@ function renderPicker() {
   const game = state.game;
   const conf = GAME_CONF[game];
   $('#pickerTitle').textContent = `${conf.name} · 选号`;
-  $('#pickerIssue').textContent = nextIssueCode(game)
-    ? `当前购买：第 ${nextIssueCode(game)} 期`
-    : '开奖数据未获取，暂无法确定期号';
+  const issue = nextIssueCode(game);
+  $('#pickerIssue').textContent = issue ? `模拟投注：第 ${issue} 期` : '期号待确认，请刷新开奖数据';
 
   const area = $('#pickerArea');
   area.innerHTML = '';
@@ -363,7 +431,7 @@ function renderPicker() {
 
     const redGroup = document.createElement('div');
     redGroup.className = 'picker-group';
-    redGroup.innerHTML = `<div class="picker-group-label">红球（1-33，至少选 <b>6</b> 个，已选 <b>${reds.length}</b> 个）</div>`;
+    redGroup.innerHTML = `<div class="picker-group-label">红球（1-33，选 <b>6</b> 个，已选 <b>${reds.length}</b> 个）</div>`;
     const grid = document.createElement('div');
     grid.className = 'ball-grid';
     for (let n = 1; n <= 33; n++) {
@@ -399,15 +467,28 @@ function renderPicker() {
     $('#pickerTip').textContent = done
       ? `已选满，本注 × ${multiplier} 倍 = ${fmtYuan(cost)}，加入投注吧`
       : '请选 6 个红球 + 1 个蓝球';
-    $('#btnAddBet').disabled = !done;
+    $('#btnAddBet').disabled = !done || !issue;
   } else {
-    const { digits, multiplier } = state.picker['3d'];
+    const { digits, multiplier, playMode } = state.picker['3d'];
+
+    const modes = document.createElement('div');
+    modes.className = 'play-mode-row';
+    modes.textContent = '玩法：';
+    ['direct', 'group3', 'group6'].forEach((mode) => {
+      const button = document.createElement('button');
+      button.className = 'filter-btn' + (playMode === mode ? ' active' : '');
+      button.textContent = D3_MODE_NAME[mode];
+      button.setAttribute('aria-pressed', String(playMode === mode));
+      button.onclick = () => { state.picker['3d'].playMode = mode; renderPicker(); };
+      modes.appendChild(button);
+    });
+    area.appendChild(modes);
 
     area.appendChild(buildMultiplierRow('3d', multiplier));
 
     const group = document.createElement('div');
     group.className = 'picker-group';
-    group.innerHTML = `<div class="picker-group-label">选择一个 3 位号码（每位 0-9），对奖时自动判定直选 / 组选</div>`;
+    group.innerHTML = '<div class="picker-group-label">选择一个 3 位号码（每位 0-9），按已选玩法对奖</div>';
     const row = document.createElement('div');
     row.className = 'digit-row';
     ['百位', '十位', '个位'].forEach((label, idx) => {
@@ -432,12 +513,15 @@ function renderPicker() {
     group.appendChild(row);
     area.appendChild(group);
 
-    const done = digits.every((d) => d !== null);
+    const complete = digits.every((d) => d !== null);
+    const validMode = playMode === 'direct' || new Set(digits).size === (playMode === 'group3' ? 2 : 3);
+    const done = complete && validMode;
     const cost = done ? conf.price * multiplier : 0;
     $('#pickerTip').textContent = done
-      ? `号码已选好，本注 × ${multiplier} 倍 = ${fmtYuan(cost)}，加入投注吧`
-      : '请把百、十、个三位都选上';
-    $('#btnAddBet').disabled = !done;
+      ? `${D3_MODE_NAME[playMode]}，本注 × ${multiplier} 倍 = ${fmtYuan(cost)}，加入投注吧`
+      : !complete ? '请把百、十、个三位都选上'
+        : playMode === 'group3' ? '组选三必须恰有两位数字相同' : '组选六必须三位数字各不相同';
+    $('#btnAddBet').disabled = !done || !issue;
   }
 }
 
@@ -484,7 +568,7 @@ function renderBets() {
   const listEl = $('#betList');
   listEl.innerHTML = '';
 
-  $('#betIssueTag').textContent = issue ? `待开奖：第 ${issue} 期` : '待开奖';
+  $('#betIssueTag').textContent = issue ? `下一期：${issue}` : '期号待确认';
   $('#betCount').textContent = bets.length === 0
     ? '共 0 注'
     : `共 ${bets.length} 注 · ${bets.reduce((s, b) => s + GAME_CONF[game].price * (b.multiplier || 1), 0)} 元`;
@@ -520,6 +604,14 @@ function renderBets() {
     costEl.className = 'bet-cost';
     costEl.textContent = fmtYuan(cost);
     main.appendChild(costEl);
+
+    const issueEl = document.createElement('span');
+    issueEl.className = 'bet-issue';
+    const overdue = draw && String(bet.issue) <= String(draw.code);
+    issueEl.classList.toggle('pending', !!overdue);
+    issueEl.textContent = `第 ${bet.issue} 期${game === '3d' ? ' · ' + D3_MODE_NAME[bet.playMode || 'legacy'] : ''}`
+      + (overdue ? ' · 缺少该期完整开奖数据，暂未结算' : ' · 等待开奖');
+    main.appendChild(issueEl);
 
     const right = document.createElement('div');
     right.style.cssText = 'display:flex;align-items:center;gap:8px';
@@ -627,6 +719,11 @@ function renderLedger() {
         const multi = document.createElement('span'); multi.className = 'bet-multi';
         multi.textContent = `× ${entry.multiplier}`;
         main.appendChild(multi);
+        const result = document.createElement('span');
+        result.className = 'bet-issue';
+        result.textContent = (rec.game === '3d' ? D3_MODE_NAME[entry.bet.playMode || 'legacy'] + ' · ' : '')
+          + (entry.name || '未中基础奖');
+        main.appendChild(result);
 
         const money = document.createElement('span');
         money.className = 'ledger-bet-money';
@@ -669,7 +766,7 @@ function renderLedger() {
 function addBet() {
   const game = state.game;
   const issue = nextIssueCode(game);
-  if (!issue) return alert('开奖数据尚未获取，暂无法确定期号');
+  if (!issue) return alert('期号待确认，请先刷新开奖数据后再投注');
 
   let betData;
   if (game === 'ssq') {
@@ -679,11 +776,14 @@ function addBet() {
     state.bets.ssq.push(betData);
     state.picker.ssq = { reds: [], blue: null, multiplier: 1 };
   } else {
-    const { digits, multiplier } = state.picker['3d'];
+    const { digits, multiplier, playMode } = state.picker['3d'];
     if (digits.some((d) => d === null)) return;
-    betData = { id: uid(), game, issue, digits: [...digits], multiplier, purchasedAt: new Date().toISOString() };
+    if (!['direct', 'group3', 'group6'].includes(playMode)) return;
+    if (playMode === 'group3' && new Set(digits).size !== 2) return;
+    if (playMode === 'group6' && new Set(digits).size !== 3) return;
+    betData = { id: uid(), game, issue, digits: [...digits], multiplier, playMode, purchasedAt: new Date().toISOString() };
     state.bets['3d'].push(betData);
-    state.picker['3d'] = { digits: [null, null, null], multiplier: 1 };
+    state.picker['3d'] = { digits: [null, null, null], multiplier: 1, playMode };
   }
   saveBets();
   renderPicker();
@@ -695,14 +795,14 @@ function randomFillPicker() {
     const m = state.picker.ssq.multiplier;
     state.picker.ssq = { ...randomSsq(), multiplier: m };
   } else {
-    const m = state.picker['3d'].multiplier;
-    state.picker['3d'] = { ...randomD3(), multiplier: m };
+    const { multiplier, playMode } = state.picker['3d'];
+    state.picker['3d'] = { ...randomD3(playMode), multiplier, playMode };
   }
   renderPicker();
 }
 function clearPicker() {
   if (state.game === 'ssq') state.picker.ssq = { reds: [], blue: null, multiplier: state.picker.ssq.multiplier };
-  else state.picker['3d'] = { digits: [null, null, null], multiplier: state.picker['3d'].multiplier };
+  else state.picker['3d'] = { ...state.picker['3d'], digits: [null, null, null] };
   renderPicker();
 }
 
@@ -725,6 +825,7 @@ function renderAll(err) {
   renderPicker();
   renderBets();
   renderLedger();
+  renderRules();
   renderHeaderStatus(err);
 }
 

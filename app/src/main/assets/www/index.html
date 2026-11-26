@@ -28,11 +28,12 @@
       <button class="game-tab" data-game="3d" role="tab">福彩3D</button>
     </div>
 
-    <!-- 页面级切换：开奖 / 投注 / 账本 -->
+    <!-- 页面级切换：开奖 / 投注 / 账本 / 中奖规则 -->
     <div class="page-tabs">
       <button class="page-tab active" data-page="draw">开奖</button>
       <button class="page-tab" data-page="bet">投注</button>
       <button class="page-tab" data-page="ledger">账本</button>
+      <button class="page-tab" data-page="rules">中奖规则</button>
     </div>
 
     <!-- ========== 开奖页 ========== -->
@@ -86,7 +87,7 @@
       <!-- 待开奖投注 -->
       <div class="card">
         <div class="card-head">
-          <h2>我的投注</h2>
+          <h2>我的投注 · 待结算</h2>
           <div class="head-actions">
             <span class="picker-issue-tag" id="betIssueTag">--</span>
             <span class="bet-count" id="betCount">共 0 注</span>
@@ -109,6 +110,18 @@
       <div class="card">
         <div class="card-head"><h2>每期明细</h2></div>
         <div class="ledger-detail" id="ledgerDetail"></div>
+      </div>
+    </section>
+
+    <section class="page-section" data-page="rules" hidden>
+      <div class="card">
+        <div class="card-head"><h2 id="rulesTitle">中奖规则</h2></div>
+        <p class="rules-intro" id="rulesIntro"></p>
+        <div class="prize-table-wrap">
+          <table class="prize-table rules-table" id="rulesTable" aria-label="中奖条件与单注奖金"></table>
+        </div>
+        <div class="rules-notes" id="rulesNotes"></div>
+        <p class="rules-source" id="rulesSource"></p>
       </div>
     </section>
 

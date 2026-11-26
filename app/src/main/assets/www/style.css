@@ -105,6 +105,21 @@ body {
 .prize-table th { color: var(--muted); font-weight: 600; background: #faf8f3; }
 .prize-table .pname { color: var(--red); font-weight: 700; }
 
+/* ---------- Rules / pending settlement ---------- */
+.rules-intro, .rules-notes { font-size: 13px; line-height: 1.8; }
+.rules-intro { color: var(--muted); }
+.rules-table { table-layout: fixed; }
+.rules-table th, .rules-table td { white-space: normal; overflow-wrap: anywhere; padding: 10px 6px; }
+.rules-table th:first-child { width: 25%; }
+.rules-table th:nth-child(2) { width: 42%; }
+.rules-notes p { margin-top: 12px; }
+.rules-notes strong { color: var(--red-dark); }
+.rules-source { font-size: 12px; color: var(--muted); margin-top: 14px; line-height: 1.8; }
+.rules-source a { color: var(--blue); }
+.play-mode-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+.bet-issue { width: 100%; font-size: 12px; color: var(--muted); }
+.bet-issue.pending { color: var(--red-dark); }
+
 /* ---------- History ---------- */
 .history-list { display: flex; flex-direction: column; gap: 4px; }
 .history-row {
